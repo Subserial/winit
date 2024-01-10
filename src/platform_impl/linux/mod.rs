@@ -35,7 +35,7 @@ use crate::{
 };
 
 #[cfg(wayland_platform)]
-use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
+pub(crate) use crate::platform::wayland::{WLRAnchor, WLRKeyboardInteractivity, WLRLayer};
 
 pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
@@ -90,11 +90,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 pub struct X11WindowBuilderAttributes {
     pub visual_id: Option<x11rb::protocol::xproto::Visualid>,
     pub screen_id: Option<i32>,
-    #[cfg(x11_platform)]
     pub base_size: Option<Size>,
-    #[cfg(x11_platform)]
     pub override_redirect: bool,
-    #[cfg(x11_platform)]
     pub x11_window_types: Vec<XWindowType>,
 
     /// The parent window to embed this window into.
@@ -104,11 +101,11 @@ pub struct X11WindowBuilderAttributes {
 #[derive(Clone)]
 #[cfg(wayland_platform)]
 pub struct WaylandWindowBuilderAttributes {
-    pub layer_shell: Option<Layer>,
-    pub anchor: Option<Anchor>,
+    pub layer_shell: Option<WLRLayer>,
+    pub anchor: Option<WLRAnchor>,
     pub exclusive_zone: Option<i32>,
     pub margin: Option<(i32, i32, i32, i32)>,
-    pub keyboard_interactivity: Option<KeyboardInteractivity>,
+    pub keyboard_interactivity: Option<WLRKeyboardInteractivity>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
