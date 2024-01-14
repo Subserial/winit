@@ -41,6 +41,7 @@ pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physi
 pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
+use crate::platform::wayland::WLRExclusiveZone;
 pub(crate) use crate::platform_impl::Fullscreen;
 
 pub(crate) mod common;
@@ -103,7 +104,7 @@ pub struct X11WindowBuilderAttributes {
 pub struct WaylandWindowBuilderAttributes {
     pub layer_shell: Option<WLRLayer>,
     pub anchor: Option<WLRAnchor>,
-    pub exclusive_zone: Option<i32>,
+    pub exclusive_zone: Option<WLRExclusiveZone>,
     pub margin: Option<(i32, i32, i32, i32)>,
     pub keyboard_interactivity: Option<WLRKeyboardInteractivity>,
 }

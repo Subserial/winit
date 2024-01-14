@@ -53,6 +53,20 @@ pub enum WLRKeyboardInteractivity {
     OnDemand,
 }
 
+/// WLR Exclusive zone. Maps to input to
+/// [`zwlr_layer_surface_v1::set_exclusive_zone`](https://wayland.app/protocols/wlr-layer-shell-unstable-v1#zwlr_layer_surface_v1:request:set_exclusive_zone).
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum WLRExclusiveZone {
+    /// The surface has no exclusive zone and may be moved by the compositor, like a notification.
+    #[default]
+    None,
+    /// The surface should ignore other exclusive zones, like a wallpaper or lock screen.
+    IgnoreOthers,
+    /// The surface should have an exclusive zone, specified in pixels.
+    Positive(i32),
+}
+
 /// Additional methods on [`EventLoopWindowTarget`] that are specific to Wayland.
 pub trait EventLoopWindowTargetExtWayland {
     /// True if the [`EventLoopWindowTarget`] uses Wayland.
@@ -115,7 +129,7 @@ pub trait WindowBuilderExtWayland {
 
     fn with_anchor(self, anchor: WLRAnchor) -> Self;
 
-    fn with_exclusive_zone(self, exclusive_zone: i32) -> Self;
+    fn with_exclusive_zone(self, exclusive_zone: WLRExclusiveZone) -> Self;
 
     fn with_margin(self, top: i32, right: i32, bottom: i32, left: i32) -> Self;
 
@@ -145,7 +159,7 @@ impl WindowBuilderExtWayland for WindowBuilder {
     }
 
     #[inline]
-    fn with_exclusive_zone(mut self, exclusive_zone: i32) -> Self {
+    fn with_exclusive_zone(mut self, exclusive_zone: WLRExclusiveZone) -> Self {
         self.platform_specific.wayland.exclusive_zone = Some(exclusive_zone);
         self
     }

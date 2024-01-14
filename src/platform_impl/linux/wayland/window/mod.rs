@@ -41,7 +41,7 @@ use super::{EventLoopWindowTarget, WaylandError, WindowId};
 pub(crate) mod state;
 
 pub use state::WindowState;
-use crate::platform::wayland::{WLRAnchor, WLRKeyboardInteractivity, WLRLayer};
+use crate::platform::wayland::{WLRAnchor, WLRExclusiveZone, WLRKeyboardInteractivity, WLRLayer};
 
 /// The Wayland window.
 pub struct Window {
@@ -778,7 +778,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+    pub fn set_exclusive_zone(&self, exclusive_zone: WLRExclusiveZone) {
         self.window.set_exclusive_zone(exclusive_zone);
     }
 
@@ -879,9 +879,16 @@ impl WindowShell {
         }
     }
 
-    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+    pub fn set_exclusive_zone(&self, exclusive_zone: WLRExclusiveZone) {
         match self {
-            WindowShell::WlrLayer { surface } => surface.set_exclusive_zone(exclusive_zone),
+            WindowShell::WlrLayer { surface } => {
+                let zone_value = match exclusive_zone {
+                    WLRExclusiveZone::None => 0,
+                    WLRExclusiveZone::IgnoreOthers => -1,
+                    WLRExclusiveZone::Positive(val) => val,
+                };
+                surface.set_exclusive_zone(zone_value);
+            }
             WindowShell::Xdg { .. } => warn!("Exclusive zone is ignored for XDG windows"),
         }
     }
