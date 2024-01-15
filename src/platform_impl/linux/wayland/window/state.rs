@@ -20,7 +20,9 @@ use sctk::reexports::protocols::xdg::shell::client::xdg_toplevel::ResizeEdge as 
 
 use sctk::compositor::{CompositorState, Region, SurfaceData, SurfaceDataExt};
 use sctk::seat::pointer::{PointerDataExt, ThemedPointer};
-use sctk::shell::wlr_layer::{LayerSurface, LayerSurfaceConfigure};
+use sctk::shell::wlr_layer::{
+    Anchor, KeyboardInteractivity, Layer, LayerSurface, LayerSurfaceConfigure,
+};
 use sctk::shell::xdg::window::{DecorationMode, Window, WindowConfigure};
 use sctk::shell::xdg::XdgSurface;
 use sctk::shell::WaylandSurface;
@@ -193,7 +195,10 @@ impl WindowState {
     /// Get the current state of the frame callback.
     pub fn frame_callback_state(&self) -> FrameCallbackState {
         match self.shell_specific {
-            ShellSpecificState::Xdg { frame_callback_state, .. } => frame_callback_state,
+            ShellSpecificState::Xdg {
+                frame_callback_state,
+                ..
+            } => frame_callback_state,
             ShellSpecificState::WlrLayer { .. } => FrameCallbackState::None,
         }
     }
@@ -201,7 +206,10 @@ impl WindowState {
     /// The frame callback was received, but not yet sent to the user.
     pub fn frame_callback_received(&mut self) {
         match &mut self.shell_specific {
-            ShellSpecificState::Xdg { frame_callback_state, .. } => {
+            ShellSpecificState::Xdg {
+                frame_callback_state,
+                ..
+            } => {
                 *frame_callback_state = FrameCallbackState::Received;
             }
             ShellSpecificState::WlrLayer { .. } => {}
@@ -211,28 +219,32 @@ impl WindowState {
     /// Reset the frame callbacks state.
     pub fn frame_callback_reset(&mut self) {
         match &mut self.shell_specific {
-            ShellSpecificState::Xdg { frame_callback_state, .. } => {
+            ShellSpecificState::Xdg {
+                frame_callback_state,
+                ..
+            } => {
                 *frame_callback_state = FrameCallbackState::None;
             }
-            ShellSpecificState::WlrLayer { .. } => {},
+            ShellSpecificState::WlrLayer { .. } => {}
         }
     }
 
     /// Request a frame callback if we don't have one for this window in flight.
     pub fn request_frame_callback(&mut self) {
-
         match &mut self.shell_specific {
-            ShellSpecificState::Xdg { window, frame_callback_state, .. } => {
-                match frame_callback_state {
-                    FrameCallbackState::None | FrameCallbackState::Received => {
-                        *frame_callback_state = FrameCallbackState::Requested;
-                        let surface = window.wl_surface();
-                        surface.frame(&self.queue_handle, surface.clone());
-                    }
-                    FrameCallbackState::Requested => (),
+            ShellSpecificState::Xdg {
+                window,
+                frame_callback_state,
+                ..
+            } => match frame_callback_state {
+                FrameCallbackState::None | FrameCallbackState::Received => {
+                    *frame_callback_state = FrameCallbackState::Requested;
+                    let surface = window.wl_surface();
+                    surface.frame(&self.queue_handle, surface.clone());
                 }
-            }
-            ShellSpecificState::WlrLayer { .. } => {},
+                FrameCallbackState::Requested => (),
+            },
+            ShellSpecificState::WlrLayer { .. } => {}
         }
     }
 
@@ -251,9 +263,10 @@ impl WindowState {
             decorate,
             ref mut stateless_size,
             ..
-        } = self.shell_specific else {
+        } = self.shell_specific
+        else {
             error!("configure_xdg called in layer_shell context");
-            return false
+            return false;
         };
 
         // NOTE: when using fractional scaling or wl_compositor@v6 the scaling
@@ -265,9 +278,7 @@ impl WindowState {
         }
 
         if let Some(subcompositor) = subcompositor.as_ref().filter(|_| {
-            configure.decoration_mode == DecorationMode::Client
-                && frame.is_none()
-                && !*csd_fails
+            configure.decoration_mode == DecorationMode::Client && frame.is_none() && !*csd_fails
         }) {
             match WinitFrame::new(
                 window,
@@ -346,9 +357,7 @@ impl WindowState {
         }
 
         let new_state = configure.state;
-        let old_state = last_configure
-            .as_ref()
-            .map(|configure| configure.state);
+        let old_state = last_configure.as_ref().map(|configure| configure.state);
 
         let state_change_requires_resize = old_state
             .map(|old_state| {
@@ -372,10 +381,7 @@ impl WindowState {
     }
 
     pub fn configure_layer(&mut self, configure: LayerSurfaceConfigure) -> bool {
-        let ShellSpecificState::WlrLayer {
-            last_configure,
-            ..
-        } = &mut self.shell_specific else {
+        let ShellSpecificState::WlrLayer { last_configure, .. } = &mut self.shell_specific else {
             error!("configure_layer called in xdg context");
             return true;
         };
@@ -473,7 +479,12 @@ impl WindowState {
         updates: &mut Vec<WindowCompositorUpdate>,
     ) -> Option<bool> {
         match &mut self.shell_specific {
-            ShellSpecificState::Xdg { window, frame, has_pending_move, .. } => {
+            ShellSpecificState::Xdg {
+                window,
+                frame,
+                has_pending_move,
+                ..
+            } => {
                 match frame.as_mut()?.on_click(timestamp, click, pressed)? {
                     FrameAction::Minimize => window.set_minimized(),
                     FrameAction::Maximize => window.set_maximized(),
@@ -526,7 +537,12 @@ impl WindowState {
         y: f64,
     ) -> Option<CursorIcon> {
         match &mut self.shell_specific {
-            ShellSpecificState::Xdg { window, frame, has_pending_move, .. } => {
+            ShellSpecificState::Xdg {
+                window,
+                frame,
+                has_pending_move,
+                ..
+            } => {
                 // Take the serial if we had any, so it doesn't stick around.
                 let serial = has_pending_move.take();
 
@@ -544,7 +560,7 @@ impl WindowState {
                     None
                 }
             }
-            ShellSpecificState::WlrLayer { .. } => None
+            ShellSpecificState::WlrLayer { .. } => None,
         }
     }
 
@@ -799,7 +815,11 @@ impl WindowState {
 
     /// Refresh the decorations frame if it's present returning whether the client should redraw.
     pub fn refresh_frame(&mut self) -> bool {
-        if let ShellSpecificState::Xdg {frame: Some(ref mut frame), .. } = self.shell_specific {
+        if let ShellSpecificState::Xdg {
+            frame: Some(ref mut frame),
+            ..
+        } = self.shell_specific
+        {
             if !frame.is_hidden() && frame.is_dirty() {
                 return frame.draw();
             }
@@ -838,18 +858,18 @@ impl WindowState {
     pub fn request_inner_size(&mut self, inner_size: Size) -> PhysicalSize<u32> {
         let scale_factor = self.scale_factor();
         match self.shell_specific {
-            ShellSpecificState::Xdg { ref last_configure, .. } => {
+            ShellSpecificState::Xdg {
+                ref last_configure, ..
+            } => {
                 if last_configure
                     .as_ref()
                     .map(Self::is_stateless)
-                    .unwrap_or(true) {
-
+                    .unwrap_or(true)
+                {
                     self.resize(inner_size.to_logical(scale_factor))
                 }
-            },
-            ShellSpecificState::WlrLayer { .. } => {
-                self.resize(inner_size.to_logical(scale_factor))
-            },
+            }
+            ShellSpecificState::WlrLayer { .. } => self.resize(inner_size.to_logical(scale_factor)),
         };
 
         logical_to_physical_rounded(self.inner_size(), scale_factor)
@@ -1230,11 +1250,11 @@ impl WindowState {
                 {
                     Some(DecorationMode::Server) if !*shell_decorate => {
                         // To disable decorations we should request client and hide the frame.
-                        window
-                            .request_decoration_mode(Some(DecorationMode::Client))
+                        window.request_decoration_mode(Some(DecorationMode::Client))
                     }
-                    _ if *shell_decorate => window
-                        .request_decoration_mode(Some(DecorationMode::Server)),
+                    _ if *shell_decorate => {
+                        window.request_decoration_mode(Some(DecorationMode::Server))
+                    }
                     _ => (),
                 }
 
@@ -1317,7 +1337,11 @@ impl WindowState {
             let _ = self.wl_surface().set_buffer_scale(self.scale_factor as _);
         }
 
-        if let ShellSpecificState::Xdg { frame: Some(ref mut frame), .. } = self.shell_specific {
+        if let ShellSpecificState::Xdg {
+            frame: Some(ref mut frame),
+            ..
+        } = self.shell_specific
+        {
             frame.set_scaling_factor(scale_factor);
         }
     }
@@ -1334,10 +1358,7 @@ impl WindowState {
                 info!("Blur manager unavailable, unable to change blur")
             }
         } else if !blurred && self.blur.is_some() {
-            self.blur_manager
-                .as_ref()
-                .unwrap()
-                .unset(self.wl_surface());
+            self.blur_manager.as_ref().unwrap().unset(self.wl_surface());
             self.blur.take().unwrap().release();
         }
     }
@@ -1396,6 +1417,58 @@ impl WindowState {
     #[inline]
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    /// Change the render layer.
+    #[inline]
+    pub fn set_layer(&self, layer: Layer) {
+        match &self.shell_specific {
+            ShellSpecificState::WlrLayer { surface, .. } => surface.set_layer(layer),
+            ShellSpecificState::Xdg { .. } => warn!("Layer is ignored for XDG windows"),
+        }
+    }
+    /// Change the anchor direction(s).
+    #[inline]
+    pub fn set_anchor(&self, anchor: Anchor) {
+        match &self.shell_specific {
+            ShellSpecificState::WlrLayer { surface, .. } => surface.set_anchor(anchor),
+            ShellSpecificState::Xdg { .. } => warn!("Anchor is ignored for XDG windows"),
+        }
+    }
+
+    /// Change the margin for each direction.
+    #[inline]
+    pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        match &self.shell_specific {
+            ShellSpecificState::WlrLayer { surface, .. } => {
+                surface.set_margin(top, right, bottom, left)
+            }
+            ShellSpecificState::Xdg { .. } => warn!("Margin is ignored for XDG windows"),
+        }
+    }
+
+    /// Change the size of the exclusive zone.
+    #[inline]
+    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        match &self.shell_specific {
+            ShellSpecificState::WlrLayer { surface, .. } => {
+                surface.set_exclusive_zone(exclusive_zone);
+            }
+            ShellSpecificState::Xdg { .. } => warn!("Exclusive zone is ignored for XDG windows"),
+        }
+    }
+
+    /// Change the keyboard interactivity.
+    #[inline]
+    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        match &self.shell_specific {
+            ShellSpecificState::WlrLayer { surface, .. } => {
+                surface.set_keyboard_interactivity(keyboard_interactivity)
+            }
+            ShellSpecificState::Xdg { .. } => {
+                warn!("Keyboard interactivity is ignored for XDG windows")
+            }
+        }
     }
 }
 

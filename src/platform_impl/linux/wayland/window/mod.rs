@@ -41,7 +41,6 @@ use super::{EventLoopWindowTarget, WaylandError, WindowId};
 pub(crate) mod state;
 
 pub use state::WindowState;
-use crate::platform::wayland::{WLRAnchor, WLRExclusiveZone, WLRKeyboardInteractivity, WLRLayer};
 
 /// The Wayland window.
 pub struct Window {
@@ -106,14 +105,9 @@ impl Window {
             .inner_size
             .unwrap_or(LogicalSize::new(800., 600.).into());
 
-        let (window, mut window_state) = if let Some(layer) = platform_attributes.wayland.layer_shell {
-            let layer = match layer {
-                WLRLayer::Background => Layer::Background,
-                WLRLayer::Bottom => Layer::Bottom,
-                WLRLayer::Top => Layer::Top,
-                WLRLayer::Overlay => Layer::Overlay,
-            };
-
+        let (window, mut window_state) = if let Some(layer) =
+            platform_attributes.wayland.layer_shell
+        {
             let layer_surface = state.layer_shell.create_layer_surface(
                 &queue_handle,
                 surface.clone(),
@@ -140,18 +134,18 @@ impl Window {
             };
 
             if let Some(anchor) = platform_attributes.wayland.anchor {
-                window_shell.set_anchor(anchor);
+                window_state.set_anchor(anchor);
             }
             if let Some(exclusive_zone) = platform_attributes.wayland.exclusive_zone {
-                window_shell.set_exclusive_zone(exclusive_zone)
+                window_state.set_exclusive_zone(exclusive_zone)
             }
             if let Some((top, right, bottom, left)) = platform_attributes.wayland.margin {
-                window_shell.set_margin(top, right, bottom, left);
+                window_state.set_margin(top, right, bottom, left);
             }
-            if let Some(keyboard_interactivity) = platform_attributes.wayland.keyboard_interactivity {
-                window_shell.set_keyboard_interactivity(keyboard_interactivity);
+            if let Some(keyboard_interactivity) = platform_attributes.wayland.keyboard_interactivity
+            {
+                window_state.set_keyboard_interactivity(keyboard_interactivity);
             }
-
             (window_shell, window_state)
         } else {
             // We prefer server side decorations, however to not have decorations we ask for client
@@ -164,8 +158,8 @@ impl Window {
 
             let window =
                 state
-                .xdg_shell
-                .create_window(surface.clone(), default_decorations, &queue_handle);
+                    .xdg_shell
+                    .create_window(surface.clone(), default_decorations, &queue_handle);
 
             let mut window_state = WindowState::new_xdg(
                 event_loop_window_target.connection.clone(),
@@ -763,28 +757,36 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_layer(&self, layer: WLRLayer) {
-        self.window.set_layer(layer);
+    pub fn set_layer(&self, layer: Layer) {
+        self.window_state.lock().unwrap().set_layer(layer);
     }
 
     #[inline]
-    pub fn set_anchor(&self, anchor: WLRAnchor) {
-        self.window.set_anchor(anchor);
+    pub fn set_anchor(&self, anchor: Anchor) {
+        self.window_state.lock().unwrap().set_anchor(anchor);
     }
 
     #[inline]
     pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
-        self.window.set_margin(top, right, bottom, left);
+        self.window_state
+            .lock()
+            .unwrap()
+            .set_margin(top, right, bottom, left);
     }
 
     #[inline]
-    pub fn set_exclusive_zone(&self, exclusive_zone: WLRExclusiveZone) {
-        self.window.set_exclusive_zone(exclusive_zone);
+    pub fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        self.window_state
+            .lock()
+            .unwrap()
+            .set_exclusive_zone(exclusive_zone);
     }
 
     #[inline]
-    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: WLRKeyboardInteractivity) {
-        self.window
+    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        self.window_state
+            .lock()
+            .unwrap()
             .set_keyboard_interactivity(keyboard_interactivity);
     }
 }
@@ -844,66 +846,6 @@ impl WindowShell {
         match self {
             WindowShell::Xdg { window } => window.wl_surface(),
             WindowShell::WlrLayer { surface } => surface.wl_surface(),
-        }
-    }
-
-    pub fn set_layer(&self, layer: WLRLayer) {
-        match self {
-            WindowShell::WlrLayer { surface } => {
-                let layer = match layer {
-                    WLRLayer::Background => Layer::Background,
-                    WLRLayer::Bottom => Layer::Bottom,
-                    WLRLayer::Top => Layer::Top,
-                    WLRLayer::Overlay => Layer::Overlay,
-                };
-                surface.set_layer(layer)
-            },
-            WindowShell::Xdg { .. } => warn!("Layer is ignored for XDG windows"),
-        }
-    }
-
-    pub fn set_anchor(&self, anchor: WLRAnchor) {
-        match self {
-            WindowShell::WlrLayer { surface } => {
-                let anchor = Anchor::from_bits_retain(anchor.bits());
-                surface.set_anchor(anchor)
-            },
-            WindowShell::Xdg { .. } => warn!("Anchor is ignored for XDG windows"),
-        }
-    }
-
-    pub fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
-        match self {
-            WindowShell::WlrLayer { surface } => surface.set_margin(top, right, bottom, left),
-            WindowShell::Xdg { .. } => warn!("Margin is ignored for XDG windows"),
-        }
-    }
-
-    pub fn set_exclusive_zone(&self, exclusive_zone: WLRExclusiveZone) {
-        match self {
-            WindowShell::WlrLayer { surface } => {
-                let zone_value = match exclusive_zone {
-                    WLRExclusiveZone::None => 0,
-                    WLRExclusiveZone::IgnoreOthers => -1,
-                    WLRExclusiveZone::Positive(val) => val,
-                };
-                surface.set_exclusive_zone(zone_value);
-            }
-            WindowShell::Xdg { .. } => warn!("Exclusive zone is ignored for XDG windows"),
-        }
-    }
-
-    pub fn set_keyboard_interactivity(&self, keyboard_interactivity: WLRKeyboardInteractivity) {
-        match self {
-            WindowShell::WlrLayer { surface } => {
-                let keyboard_interactivity = match keyboard_interactivity {
-                    WLRKeyboardInteractivity::None => KeyboardInteractivity::None,
-                    WLRKeyboardInteractivity::Exclusive => KeyboardInteractivity::Exclusive,
-                    WLRKeyboardInteractivity::OnDemand => KeyboardInteractivity::OnDemand,
-                };
-                surface.set_keyboard_interactivity(keyboard_interactivity)
-            }
-            WindowShell::Xdg { .. } => warn!("Keyboard interactivity is ignored for XDG windows"),
         }
     }
 }

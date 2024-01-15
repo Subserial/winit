@@ -3,69 +3,9 @@ use crate::{
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
+pub use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 
 pub use crate::window::Theme;
-
-/// WLR Layer Shell layer type. Maps directly to
-/// [`zwlr_layer_shell_v1::layer`](https://wayland.app/protocols/wlr-layer-shell-unstable-v1#zwlr_layer_shell_v1:enum:layer).
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum WLRLayer {
-    /// Renders the layer on the background.
-    Background,
-    /// Renders the layer behind traditional windows.
-    #[default]
-    Bottom,
-    /// Renders the layer above traditional windows.
-    Top,
-    /// Renders the layer above all other windows.
-    Overlay,
-}
-
-bitflags::bitflags! {
-    /// WLR Layer Surface anchor direction. Maps directly to
-    /// [`zwlr_layer_surface_v1::anchor`](https://wayland.app/protocols/wlr-layer-shell-unstable-v1#zwlr_layer_surface_v1:enum:anchor).
-    #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-    pub struct WLRAnchor: u32 {
-        /// The top edge of the anchor rectangle.
-        const TOP = 1 << 0;
-        /// The bottom edge of the anchor rectangle.
-        const BOTTOM = 1 << 1;
-        /// The left edge of the anchor rectangle.
-        const LEFT = 1 << 2;
-        /// The right edge of the anchor rectangle.
-        const RIGHT = 1 << 3;
-    }
-}
-
-/// WLR Layer Surface keyboard interactivity. Maps directly to
-/// [`zwlr_layer_surface_v1::keyboard_interactivity`](https://wayland.app/protocols/wlr-layer-shell-unstable-v1#zwlr_layer_surface_v1:enum:keyboard_interactivity).
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum WLRKeyboardInteractivity {
-    /// The surface is not interested in keyboard events.
-    #[default]
-    None,
-    /// The surface wants exclusive access to keyboard events.
-    /// If the surface layer is Background or Bottom, this is equivalent to OnDemand.
-    Exclusive,
-    /// The surface wants to receive keyboard events when focused.
-    OnDemand,
-}
-
-/// WLR Exclusive zone. Maps to input to
-/// [`zwlr_layer_surface_v1::set_exclusive_zone`](https://wayland.app/protocols/wlr-layer-shell-unstable-v1#zwlr_layer_surface_v1:request:set_exclusive_zone).
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum WLRExclusiveZone {
-    /// The surface has no exclusive zone and may be moved by the compositor, like a notification.
-    #[default]
-    None,
-    /// The surface should ignore other exclusive zones, like a wallpaper or lock screen.
-    IgnoreOthers,
-    /// The surface should have an exclusive zone, specified in pixels.
-    Positive(i32),
-}
 
 /// Additional methods on [`EventLoopWindowTarget`] that are specific to Wayland.
 pub trait EventLoopWindowTargetExtWayland {
@@ -107,9 +47,65 @@ impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
 }
 
 /// Additional methods on [`Window`] that are specific to Wayland.
-pub trait WindowExtWayland {}
+pub trait WindowExtWayland {
+    fn set_layer(&self, layer: Layer);
+    fn set_anchor(&self, anchor: Anchor);
+    fn set_exclusive_zone(&self, exclusive_zone: i32);
+    fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32);
+    fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity);
+}
 
-impl WindowExtWayland for Window {}
+impl WindowExtWayland for Window {
+    fn set_layer(&self, layer: Layer) {
+        self.window.maybe_queue_on_main(move |w| {
+            let crate::platform_impl::Window::Wayland(ref window) = w else {
+                log::error!("set_layer is ignored on X11 windows");
+                return;
+            };
+            window.set_layer(layer);
+        });
+    }
+
+    fn set_anchor(&self, anchor: Anchor) {
+        self.window.maybe_queue_on_main(move |w| {
+            let crate::platform_impl::Window::Wayland(ref window) = w else {
+                log::error!("set_anchor is ignored on X11 windows");
+                return;
+            };
+            window.set_anchor(anchor);
+        });
+    }
+
+    fn set_exclusive_zone(&self, exclusive_zone: i32) {
+        self.window.maybe_queue_on_main(move |w| {
+            let crate::platform_impl::Window::Wayland(ref window) = w else {
+                log::error!("set_exclusive_zone is ignored on X11 windows");
+                return;
+            };
+            window.set_exclusive_zone(exclusive_zone);
+        });
+    }
+
+    fn set_margin(&self, top: i32, right: i32, bottom: i32, left: i32) {
+        self.window.maybe_queue_on_main(move |w| {
+            let crate::platform_impl::Window::Wayland(ref window) = w else {
+                log::error!("set_margin is ignored on X11 windows");
+                return;
+            };
+            window.set_margin(top, right, bottom, left);
+        });
+    }
+
+    fn set_keyboard_interactivity(&self, keyboard_interactivity: KeyboardInteractivity) {
+        self.window.maybe_queue_on_main(move |w| {
+            let crate::platform_impl::Window::Wayland(ref window) = w else {
+                log::error!("set_keyboard_interactivity is ignored on X11 windows");
+                return;
+            };
+            window.set_keyboard_interactivity(keyboard_interactivity);
+        });
+    }
+}
 
 /// Additional methods on [`WindowBuilder`] that are specific to Wayland.
 pub trait WindowBuilderExtWayland {
@@ -125,15 +121,15 @@ pub trait WindowBuilderExtWayland {
     ///
     /// Building this window will fail if the compositor does not support the `zwlr_layer_shell_v1`
     /// protocol.
-    fn with_layer_shell(self, layer: WLRLayer) -> Self;
+    fn with_layer_shell(self, layer: Layer) -> Self;
 
-    fn with_anchor(self, anchor: WLRAnchor) -> Self;
+    fn with_anchor(self, anchor: Anchor) -> Self;
 
-    fn with_exclusive_zone(self, exclusive_zone: WLRExclusiveZone) -> Self;
+    fn with_exclusive_zone(self, exclusive_zone: i32) -> Self;
 
     fn with_margin(self, top: i32, right: i32, bottom: i32, left: i32) -> Self;
 
-    fn with_keyboard_interactivity(self, keyboard_interactivity: WLRKeyboardInteractivity) -> Self;
+    fn with_keyboard_interactivity(self, keyboard_interactivity: KeyboardInteractivity) -> Self;
 }
 
 impl WindowBuilderExtWayland for WindowBuilder {
@@ -147,19 +143,19 @@ impl WindowBuilderExtWayland for WindowBuilder {
     }
 
     #[inline]
-    fn with_layer_shell(mut self, layer: WLRLayer) -> Self {
+    fn with_layer_shell(mut self, layer: Layer) -> Self {
         self.platform_specific.wayland.layer_shell = Some(layer);
         self
     }
 
     #[inline]
-    fn with_anchor(mut self, anchor: WLRAnchor) -> Self {
+    fn with_anchor(mut self, anchor: Anchor) -> Self {
         self.platform_specific.wayland.anchor = Some(anchor);
         self
     }
 
     #[inline]
-    fn with_exclusive_zone(mut self, exclusive_zone: WLRExclusiveZone) -> Self {
+    fn with_exclusive_zone(mut self, exclusive_zone: i32) -> Self {
         self.platform_specific.wayland.exclusive_zone = Some(exclusive_zone);
         self
     }
@@ -173,7 +169,7 @@ impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
     fn with_keyboard_interactivity(
         mut self,
-        keyboard_interactivity: WLRKeyboardInteractivity,
+        keyboard_interactivity: KeyboardInteractivity,
     ) -> Self {
         self.platform_specific.wayland.keyboard_interactivity = Some(keyboard_interactivity);
         self

@@ -35,13 +35,12 @@ use crate::{
 };
 
 #[cfg(wayland_platform)]
-pub(crate) use crate::platform::wayland::{WLRAnchor, WLRKeyboardInteractivity, WLRLayer};
+use sctk::shell::wlr_layer::{Anchor, KeyboardInteractivity, Layer};
 
 pub(crate) use self::common::keymap::{physicalkey_to_scancode, scancode_to_physicalkey};
 pub(crate) use crate::cursor::OnlyCursorImage as PlatformCustomCursor;
 pub(crate) use crate::cursor::OnlyCursorImageBuilder as PlatformCustomCursorBuilder;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
-use crate::platform::wayland::WLRExclusiveZone;
 pub(crate) use crate::platform_impl::Fullscreen;
 
 pub(crate) mod common;
@@ -102,11 +101,11 @@ pub struct X11WindowBuilderAttributes {
 #[derive(Clone)]
 #[cfg(wayland_platform)]
 pub struct WaylandWindowBuilderAttributes {
-    pub layer_shell: Option<WLRLayer>,
-    pub anchor: Option<WLRAnchor>,
-    pub exclusive_zone: Option<WLRExclusiveZone>,
+    pub layer_shell: Option<Layer>,
+    pub anchor: Option<Anchor>,
+    pub exclusive_zone: Option<i32>,
     pub margin: Option<(i32, i32, i32, i32)>,
-    pub keyboard_interactivity: Option<WLRKeyboardInteractivity>,
+    pub keyboard_interactivity: Option<KeyboardInteractivity>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -130,7 +129,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
                 exclusive_zone: None,
                 margin: None,
                 keyboard_interactivity: None,
-            }
+            },
         }
     }
 }
