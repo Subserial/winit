@@ -106,6 +106,7 @@ pub struct WaylandWindowBuilderAttributes {
     pub exclusive_zone: Option<i32>,
     pub margin: Option<(i32, i32, i32, i32)>,
     pub keyboard_interactivity: Option<KeyboardInteractivity>,
+    pub output: Option<String>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -129,6 +130,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
                 exclusive_zone: None,
                 margin: None,
                 keyboard_interactivity: None,
+                output: None,
             },
         }
     }

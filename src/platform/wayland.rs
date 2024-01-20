@@ -56,6 +56,7 @@ pub trait WindowExtWayland {
 }
 
 impl WindowExtWayland for Window {
+
     fn set_layer(&self, layer: Layer) {
         self.window.maybe_queue_on_main(move |w| {
             let crate::platform_impl::Window::Wayland(ref window) = w else {
@@ -130,6 +131,8 @@ pub trait WindowBuilderExtWayland {
     fn with_margin(self, top: i32, right: i32, bottom: i32, left: i32) -> Self;
 
     fn with_keyboard_interactivity(self, keyboard_interactivity: KeyboardInteractivity) -> Self;
+
+    fn with_output(self, output: Option<String>) -> Self;
 }
 
 impl WindowBuilderExtWayland for WindowBuilder {
@@ -172,6 +175,12 @@ impl WindowBuilderExtWayland for WindowBuilder {
         keyboard_interactivity: KeyboardInteractivity,
     ) -> Self {
         self.platform_specific.wayland.keyboard_interactivity = Some(keyboard_interactivity);
+        self
+    }
+
+    #[inline]
+    fn with_output(mut self, output: Option<String>) -> Self {
+        self.platform_specific.wayland.output = output;
         self
     }
 }

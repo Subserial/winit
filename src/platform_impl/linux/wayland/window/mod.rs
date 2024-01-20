@@ -108,13 +108,25 @@ impl Window {
         let (window, mut window_state) = if let Some(layer) =
             platform_attributes.wayland.layer_shell
         {
+            let handles = monitors.lock().unwrap();
+            let output = platform_attributes.wayland.output.and_then(|name| {
+                for handle in handles.iter() {
+                    if let Some(m_name) = handle.name() {
+                        if m_name == name {
+                            return Some(&handle.proxy)
+                        }
+                    }
+                }
+                None
+            });
+
             let layer_surface = state.layer_shell.create_layer_surface(
                 &queue_handle,
                 surface.clone(),
                 layer,
                 // TODO(theonlymrcat): Is this where app id should go?
                 None::<String>,
-                None,
+                output,
             );
 
             let window_state = WindowState::new_layer(
