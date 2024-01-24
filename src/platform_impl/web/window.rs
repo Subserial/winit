@@ -28,10 +28,9 @@ pub struct Inner {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        target: &EventLoopWindowTarget<T>,
-        attr: WindowAttributes,
-        platform_attr: PlatformSpecificWindowBuilderAttributes,
+    pub(crate) fn new(
+        target: &EventLoopWindowTarget,
+        mut attr: WindowAttributes,
     ) -> Result<Self, RootOE> {
         let id = target.generate_id();
 
@@ -39,12 +38,10 @@ impl Window {
         let document = target.runner.document();
         let canvas = backend::Canvas::create(
             target.runner.main_thread(),
-            target.runner.weak(),
             id,
             window.clone(),
             document.clone(),
-            &attr,
-            platform_attr,
+            &mut attr,
         )?;
         let canvas = Rc::new(RefCell::new(canvas));
 
@@ -468,7 +465,7 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<Arc<MainThreadSafe<backend::RawCanvasType>>>,
     pub(crate) prevent_default: bool,

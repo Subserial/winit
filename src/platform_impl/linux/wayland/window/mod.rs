@@ -25,7 +25,6 @@ use crate::event::{Ime, WindowEvent};
 use crate::event_loop::AsyncRequestSerial;
 use crate::platform_impl::{
     Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError, PlatformIcon,
-    PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
     Cursor, CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType,
@@ -83,10 +82,9 @@ pub struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T>(
-        event_loop_window_target: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop_window_target: &EventLoopWindowTarget,
         attributes: WindowAttributes,
-        platform_attributes: PlatformAttributes,
     ) -> Result<Self, RootOsError> {
         let queue_handle = event_loop_window_target.queue_handle.clone();
         let mut state = event_loop_window_target.state.borrow_mut();
@@ -106,10 +104,10 @@ impl Window {
             .unwrap_or(LogicalSize::new(800., 600.).into());
 
         let (window, mut window_state) = if let Some(layer) =
-            platform_attributes.wayland.layer_shell
+            attributes.platform_specific.wayland.layer_shell
         {
             let handles = monitors.lock().unwrap();
-            let output = platform_attributes.wayland.output.and_then(|name| {
+            let output = attributes.platform_specific.wayland.output.and_then(|name| {
                 for handle in handles.iter() {
                     if let Some(m_name) = handle.name() {
                         if m_name == name {
@@ -117,6 +115,7 @@ impl Window {
                         }
                     }
                 }
+                warn!("No monitor found with handle {}", name);
                 None
             });
 
@@ -145,16 +144,16 @@ impl Window {
                 surface: layer_surface,
             };
 
-            if let Some(anchor) = platform_attributes.wayland.anchor {
+            if let Some(anchor) = attributes.platform_specific.wayland.anchor {
                 window_state.set_anchor(anchor);
             }
-            if let Some(exclusive_zone) = platform_attributes.wayland.exclusive_zone {
+            if let Some(exclusive_zone) = attributes.platform_specific.wayland.exclusive_zone {
                 window_state.set_exclusive_zone(exclusive_zone)
             }
-            if let Some((top, right, bottom, left)) = platform_attributes.wayland.margin {
+            if let Some((top, right, bottom, left)) = attributes.platform_specific.wayland.margin {
                 window_state.set_margin(top, right, bottom, left);
             }
-            if let Some(keyboard_interactivity) = platform_attributes.wayland.keyboard_interactivity
+            if let Some(keyboard_interactivity) = attributes.platform_specific.wayland.keyboard_interactivity
             {
                 window_state.set_keyboard_interactivity(keyboard_interactivity);
             }
@@ -191,7 +190,7 @@ impl Window {
             window_state.set_decorate(attributes.decorations);
 
             // Set the app_id.
-            if let Some(name) = platform_attributes.name.map(|name| name.general) {
+            if let Some(name) = attributes.platform_specific.name.map(|name| name.general) {
                 window.set_app_id(name);
             }
 
@@ -230,13 +229,13 @@ impl Window {
 
         match attributes.cursor {
             Cursor::Icon(icon) => window_state.set_cursor(icon),
-            Cursor::Custom(cursor) => window_state.set_custom_cursor(&cursor.inner.0),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
         }
 
         // Activate the window when the token is passed.
         if let (Some(xdg_activation), Some(token)) = (
             xdg_activation.as_ref(),
-            platform_attributes.activation_token,
+            attributes.platform_specific.activation_token,
         ) {
             xdg_activation.activate(token._token, &surface);
         }
@@ -556,7 +555,7 @@ impl Window {
 
         match cursor {
             Cursor::Icon(icon) => window_state.set_cursor(icon),
-            Cursor::Custom(cursor) => window_state.set_custom_cursor(&cursor.inner.0),
+            Cursor::Custom(cursor) => window_state.set_custom_cursor(cursor),
         }
     }
 

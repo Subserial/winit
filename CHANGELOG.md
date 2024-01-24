@@ -11,12 +11,14 @@ Unreleased` header.
 
 # Unreleased
 
+- **Breaking:** Removed unnecessary generic parameter `T` from `EventLoopWindowTarget`.
 - On Windows, macOS, X11, Wayland and Web, implement setting images as cursors. See the `custom_cursors.rs` example.
   - **Breaking:** Remove `Window::set_cursor_icon`
   - Add `WindowBuilder::with_cursor` and `Window::set_cursor` which takes a `CursorIcon` or `CustomCursor`
   - Add `CustomCursor`
   - Add `CustomCursor::from_rgba` to allow creating cursor images from RGBA data.
   - Add `CustomCursorExtWebSys::from_url` to allow loading cursor images from URLs.
+  - Add `CustomCursorExtWebSys::from_animation` to allow creating animated cursors from other `CustomCursor`s.
 - On macOS, add services menu.
 - **Breaking:** On Web, remove queuing fullscreen request in absence of transient activation.
 - On Web, fix setting cursor icon overriding cursor visibility.
@@ -28,6 +30,16 @@ Unreleased` header.
 - **Breaking:** Rename `VideoMode` to `VideoModeHandle` to represent that it doesn't hold static data.
 - **Breaking:** No longer export `platform::x11::XNotSupported`.
 - **Breaking:** Renamed `platform::x11::XWindowType` to `platform::x11::WindowType`.
+- Add the `OwnedDisplayHandle` type for allowing safe display handle usage outside of trivial cases.
+- **Breaking:** Rename `TouchpadMagnify` to `PinchGesture`, `SmartMagnify` to `DoubleTapGesture` and `TouchpadRotate` to `RotationGesture` to represent the action rather than the intent.
+- on iOS, add detection support for `PinchGesture`, `DoubleTapGesture` and `RotationGesture`.
+- on Windows: add `with_border_color`, `with_title_background_color`, `with_title_text_color` and `with_corner_preference`
+- On Windows, Remove `WS_CAPTION`, `WS_BORDER` and `WS_EX_WINDOWEDGE` styles for child windows without decorations.
+
+# 0.29.10
+
+- On Web, account for canvas being focused already before event loop starts.
+- On Web, increase cursor position accuracy.
 
 # 0.29.9
 
@@ -79,6 +91,7 @@ Unreleased` header.
 - On macOS, send a `Resized` event after each `ScaleFactorChanged` event.
 - On Wayland, fix `wl_surface` being destroyed before associated objects.
 - On macOS, fix assertion when pressing `Fn` key.
+- On Windows, add `WindowBuilderExtWindows::with_clip_children` to control `WS_CLIPCHILDREN` style.
 
 # 0.29.3
 

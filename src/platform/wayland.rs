@@ -13,7 +13,7 @@ pub trait EventLoopWindowTargetExtWayland {
     fn is_wayland(&self) -> bool;
 }
 
-impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
+impl EventLoopWindowTargetExtWayland for EventLoopWindowTarget {
     #[inline]
     fn is_wayland(&self) -> bool {
         self.p.is_wayland()
@@ -138,7 +138,7 @@ pub trait WindowBuilderExtWayland {
 impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
     fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
-        self.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
+        self.window.platform_specific.name = Some(crate::platform_impl::ApplicationName::new(
             general.into(),
             instance.into(),
         ));
@@ -147,25 +147,25 @@ impl WindowBuilderExtWayland for WindowBuilder {
 
     #[inline]
     fn with_layer_shell(mut self, layer: Layer) -> Self {
-        self.platform_specific.wayland.layer_shell = Some(layer);
+        self.window.platform_specific.wayland.layer_shell = Some(layer);
         self
     }
 
     #[inline]
     fn with_anchor(mut self, anchor: Anchor) -> Self {
-        self.platform_specific.wayland.anchor = Some(anchor);
+        self.window.platform_specific.wayland.anchor = Some(anchor);
         self
     }
 
     #[inline]
     fn with_exclusive_zone(mut self, exclusive_zone: i32) -> Self {
-        self.platform_specific.wayland.exclusive_zone = Some(exclusive_zone);
+        self.window.platform_specific.wayland.exclusive_zone = Some(exclusive_zone);
         self
     }
 
     #[inline]
     fn with_margin(mut self, top: i32, right: i32, bottom: i32, left: i32) -> Self {
-        self.platform_specific.wayland.margin = Some((top, right, bottom, left));
+        self.window.platform_specific.wayland.margin = Some((top, right, bottom, left));
         self
     }
 
@@ -174,13 +174,13 @@ impl WindowBuilderExtWayland for WindowBuilder {
         mut self,
         keyboard_interactivity: KeyboardInteractivity,
     ) -> Self {
-        self.platform_specific.wayland.keyboard_interactivity = Some(keyboard_interactivity);
+        self.window.platform_specific.wayland.keyboard_interactivity = Some(keyboard_interactivity);
         self
     }
 
     #[inline]
     fn with_output(mut self, output: Option<String>) -> Self {
-        self.platform_specific.wayland.output = output;
+        self.window.platform_specific.wayland.output = output;
         self
     }
 }

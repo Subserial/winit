@@ -14,7 +14,11 @@ use windows_sys::Win32::{
         HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK, WPARAM,
     },
     Graphics::{
-        Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND},
+        Dwm::{
+            DwmEnableBlurBehindWindow, DwmSetWindowAttribute, DWMWA_BORDER_COLOR,
+            DWMWA_CAPTION_COLOR, DWMWA_TEXT_COLOR, DWMWA_WINDOW_CORNER_PREFERENCE,
+            DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND, DWM_WINDOW_CORNER_PREFERENCE,
+        },
         Gdi::{
             ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
             RedrawWindow, CDS_FULLSCREEN, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE,
@@ -56,6 +60,7 @@ use windows_sys::Win32::{
 
 use log::warn;
 
+use crate::platform::windows::{Color, CornerPreference};
 use crate::{
     cursor::Cursor,
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -75,7 +80,7 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Fullscreen, PlatformSpecificWindowBuilderAttributes, SelectedCursor, WindowId,
+        Fullscreen, SelectedCursor, WindowId,
     },
     window::{
         CursorGrabMode, ImePurpose, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -96,16 +101,15 @@ pub(crate) struct Window {
 }
 
 impl Window {
-    pub(crate) fn new<T: 'static>(
-        event_loop: &EventLoopWindowTarget<T>,
+    pub(crate) fn new(
+        event_loop: &EventLoopWindowTarget,
         w_attr: WindowAttributes,
-        pl_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
         // We dispatch an `init` function because of code style.
         // First person to remove the need for cloning here gets a cookie!
         //
         // done. you owe me -- ossi
-        unsafe { init(w_attr, pl_attr, event_loop) }
+        unsafe { init(w_attr, event_loop) }
     }
 
     pub(crate) fn maybe_queue_on_main(&self, f: impl FnOnce(&Self) + Send + 'static) {
@@ -1061,6 +1065,54 @@ impl Window {
             );
         }
     }
+
+    #[inline]
+    pub fn set_border_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_BORDER_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_background_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_CAPTION_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_title_text_color(&self, color: Color) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_TEXT_COLOR,
+                &color as *const _ as _,
+                mem::size_of::<Color>() as _,
+            );
+        }
+    }
+
+    #[inline]
+    pub fn set_corner_preference(&self, preference: CornerPreference) {
+        unsafe {
+            DwmSetWindowAttribute(
+                self.hwnd(),
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &(preference as DWM_WINDOW_CORNER_PREFERENCE) as *const _ as _,
+                mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as _,
+            );
+        }
+    }
 }
 
 impl Drop for Window {
@@ -1074,17 +1126,16 @@ impl Drop for Window {
     }
 }
 
-pub(super) struct InitData<'a, T: 'static> {
+pub(super) struct InitData<'a> {
     // inputs
-    pub event_loop: &'a EventLoopWindowTarget<T>,
+    pub event_loop: &'a EventLoopWindowTarget,
     pub attributes: WindowAttributes,
-    pub pl_attribs: PlatformSpecificWindowBuilderAttributes,
     pub window_flags: WindowFlags,
     // outputs
     pub window: Option<Window>,
 }
 
-impl<'a, T: 'static> InitData<'a, T> {
+impl<'a> InitData<'a> {
     unsafe fn create_window(&self, window: HWND) -> Window {
         // Register for touch events if applicable
         {
@@ -1128,7 +1179,7 @@ impl<'a, T: 'static> InitData<'a, T> {
     }
 
     unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData {
-        let file_drop_handler = if self.pl_attribs.drag_and_drop {
+        let file_drop_handler = if self.attributes.platform_specific.drag_and_drop {
             let ole_init_result = unsafe { OleInitialize(ptr::null_mut()) };
             // It is ok if the initialize result is `S_FALSE` because it might happen that
             // multiple windows are created on the same thread.
@@ -1195,7 +1246,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         let win = self.window.as_mut().expect("failed window creation");
 
         // making the window transparent
-        if self.attributes.transparent && !self.pl_attribs.no_redirection_bitmap {
+        if self.attributes.transparent && !self.attributes.platform_specific.no_redirection_bitmap {
             // Empty region for the blur effect, so the window is fully transparent
             let region = unsafe { CreateRectRgn(0, 0, -1, -1) };
 
@@ -1215,9 +1266,9 @@ impl<'a, T: 'static> InitData<'a, T> {
             unsafe { DeleteObject(region) };
         }
 
-        win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
+        win.set_skip_taskbar(self.attributes.platform_specific.skip_taskbar);
         win.set_window_icon(self.attributes.window_icon.clone());
-        win.set_taskbar_icon(self.pl_attribs.taskbar_icon.clone());
+        win.set_taskbar_icon(self.attributes.platform_specific.taskbar_icon.clone());
 
         let attributes = self.attributes.clone();
 
@@ -1233,28 +1284,17 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         win.set_enabled_buttons(attributes.enabled_buttons);
 
-        if attributes.fullscreen.is_some() {
-            win.set_fullscreen(attributes.fullscreen.map(Into::into));
-            unsafe { force_window_active(win.window) };
-        } else {
-            let size = attributes
-                .inner_size
-                .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-            let max_size = attributes
-                .max_inner_size
-                .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
-            let min_size = attributes
-                .min_inner_size
-                .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
-            let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
-            win.request_inner_size(clamped_size);
-
-            if attributes.maximized {
-                // Need to set MAXIMIZED after setting `inner_size` as
-                // `Window::request_inner_size` changes MAXIMIZED to false.
-                win.set_maximized(true);
-            }
-        }
+        let size = attributes
+            .inner_size
+            .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+        let max_size = attributes
+            .max_inner_size
+            .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
+        let min_size = attributes
+            .min_inner_size
+            .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
+        let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
+        win.request_inner_size(clamped_size);
 
         // let margins = MARGINS {
         //     cxLeftWidth: 1,
@@ -1267,26 +1307,35 @@ impl<'a, T: 'static> InitData<'a, T> {
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
         }
+
+        if let Some(color) = self.attributes.platform_specific.border_color {
+            win.set_border_color(color);
+        }
+        if let Some(color) = self.attributes.platform_specific.title_background_color {
+            win.set_title_background_color(color);
+        }
+        if let Some(color) = self.attributes.platform_specific.title_text_color {
+            win.set_title_text_color(color);
+        }
+        if let Some(corner) = self.attributes.platform_specific.corner_preference {
+            win.set_corner_preference(corner);
+        }
     }
 }
-unsafe fn init<T>(
+unsafe fn init(
     attributes: WindowAttributes,
-    pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    event_loop: &EventLoopWindowTarget<T>,
-) -> Result<Window, RootOsError>
-where
-    T: 'static,
-{
+    event_loop: &EventLoopWindowTarget,
+) -> Result<Window, RootOsError> {
     let title = util::encode_wide(&attributes.title);
 
-    let class_name = util::encode_wide(&pl_attribs.class_name);
-    unsafe { register_window_class::<T>(&class_name) };
+    let class_name = util::encode_wide(&attributes.platform_specific.class_name);
+    unsafe { register_window_class(&class_name) };
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
     window_flags.set(
         WindowFlags::MARKER_UNDECORATED_SHADOW,
-        pl_attribs.decoration_shadow,
+        attributes.platform_specific.decoration_shadow,
     );
     window_flags.set(
         WindowFlags::ALWAYS_ON_TOP,
@@ -1298,7 +1347,7 @@ where
     );
     window_flags.set(
         WindowFlags::NO_BACK_BUFFER,
-        pl_attribs.no_redirection_bitmap,
+        attributes.platform_specific.no_redirection_bitmap,
     );
     window_flags.set(WindowFlags::MARKER_ACTIVATE, attributes.active);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
@@ -1307,8 +1356,12 @@ where
     // Will be changed later using `window.set_enabled_buttons` but we need to set a default here
     // so the diffing later can work.
     window_flags.set(WindowFlags::CLOSABLE, true);
+    window_flags.set(
+        WindowFlags::CLIP_CHILDREN,
+        attributes.platform_specific.clip_children,
+    );
 
-    let mut fallback_parent = || match pl_attribs.owner {
+    let mut fallback_parent = || match attributes.platform_specific.owner {
         Some(parent) => {
             window_flags.set(WindowFlags::POPUP, true);
             Some(parent)
@@ -1323,7 +1376,7 @@ where
     let parent = match attributes.parent_window.as_ref().map(|handle| handle.0) {
         Some(rwh_06::RawWindowHandle::Win32(handle)) => {
             window_flags.set(WindowFlags::CHILD, true);
-            if pl_attribs.menu.is_some() {
+            if attributes.platform_specific.menu.is_some() {
                 warn!("Setting a menu on a child window is unsupported");
             }
             Some(handle.hwnd.get() as HWND)
@@ -1335,10 +1388,12 @@ where
     #[cfg(not(feature = "rwh_06"))]
     let parent = fallback_parent();
 
+    let menu = attributes.platform_specific.menu;
+    let fullscreen = attributes.fullscreen.clone();
+    let maximized = attributes.maximized;
     let mut initdata = InitData {
         event_loop,
         attributes,
-        pl_attribs: pl_attribs.clone(),
         window_flags,
         window: None,
     };
@@ -1355,7 +1410,7 @@ where
             CW_USEDEFAULT,
             CW_USEDEFAULT,
             parent.unwrap_or(0),
-            pl_attribs.menu.unwrap_or(0),
+            menu.unwrap_or(0),
             util::get_instance_handle(),
             &mut initdata as *mut _ as *mut _,
         )
@@ -1372,14 +1427,25 @@ where
 
     // If the handle is non-null, then window creation must have succeeded, which means
     // that we *must* have populated the `InitData.window` field.
-    Ok(initdata.window.unwrap())
+    let win = initdata.window.unwrap();
+
+    // Need to set FULLSCREEN or MAXIMIZED after CreateWindowEx
+    // This is because if the size is changed in WM_CREATE, the restored size will be stored in that size.
+    if fullscreen.is_some() {
+        win.set_fullscreen(fullscreen.map(Into::into));
+        unsafe { force_window_active(win.window) };
+    } else if maximized {
+        win.set_maximized(true);
+    }
+
+    Ok(win)
 }
 
-unsafe fn register_window_class<T: 'static>(class_name: &[u16]) {
+unsafe fn register_window_class(class_name: &[u16]) {
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
-        lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
+        lpfnWndProc: Some(super::event_loop::public_window_callback),
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: util::get_instance_handle(),
