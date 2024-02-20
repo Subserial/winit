@@ -5,7 +5,7 @@ use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::EventLoop,
     keyboard::Key,
-    window::WindowBuilder,
+    window::Window,
 };
 
 #[path = "util/fill.rs"]
@@ -15,7 +15,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("Your faithful window")
         .build(&event_loop)
         .unwrap();
@@ -51,7 +51,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => {
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                     // See the `key_binding` example
                     match key.as_ref() {
                         Key::Character("y") => {

@@ -18,7 +18,7 @@ fn main() -> Result<(), impl std::error::Error> {
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{EventLoop, EventLoopWindowTarget},
         raw_window_handle::HasRawWindowHandle,
-        window::{Window, WindowBuilder, WindowId},
+        window::{Window, WindowId},
     };
 
     fn spawn_child_window(
@@ -27,7 +27,7 @@ fn main() -> Result<(), impl std::error::Error> {
         windows: &mut HashMap<WindowId, Window>,
     ) {
         let parent = parent.raw_window_handle().unwrap();
-        let mut builder = WindowBuilder::new()
+        let mut builder = Window::builder()
             .with_title("child window")
             .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
             .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
@@ -44,7 +44,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut windows = HashMap::new();
 
     let event_loop: EventLoop<()> = EventLoop::new().unwrap();
-    let parent_window = WindowBuilder::new()
+    let parent_window = Window::builder()
         .with_title("parent window")
         .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
         .with_inner_size(LogicalSize::new(640.0f32, 480.0f32))
@@ -64,7 +64,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     // On x11, println when the cursor entered in a window even if the child window is created
                     // by some key inputs.
                     // the child windows are always placed at (0, 0) with size (200, 200) in the parent window,
-                    // so we also can see this log when we move the cursor arround (200, 200) in parent window.
+                    // so we also can see this log when we move the cursor around (200, 200) in parent window.
                     println!("cursor entered in the window {window_id:?}");
                 }
                 WindowEvent::KeyboardInput {

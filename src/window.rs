@@ -123,7 +123,9 @@ impl From<u64> for WindowId {
     }
 }
 
-/// Object that allows building windows.
+/// Configure windows before creation.
+///
+/// You can access this from [`Window::builder`].
 #[derive(Clone, Default)]
 #[must_use]
 pub struct WindowBuilder {
@@ -139,7 +141,7 @@ impl fmt::Debug for WindowBuilder {
     }
 }
 
-/// Attributes to use when creating a window.
+/// Attributes used when creating a window.
 #[derive(Debug, Clone)]
 pub struct WindowAttributes {
     pub inner_size: Option<Size>,
@@ -226,6 +228,7 @@ impl WindowAttributes {
 impl WindowBuilder {
     /// Initializes a new builder with default values.
     #[inline]
+    #[deprecated = "use `Window::builder` instead"]
     pub fn new() -> Self {
         Default::default()
     }
@@ -551,7 +554,7 @@ impl WindowBuilder {
 impl Window {
     /// Creates a new Window for platforms where this is appropriate.
     ///
-    /// This function is equivalent to [`WindowBuilder::new().build(event_loop)`].
+    /// This function is equivalent to [`Window::builder().build(event_loop)`].
     ///
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
@@ -561,11 +564,16 @@ impl Window {
     /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     ///
-    /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
+    /// [`Window::builder().build(event_loop)`]: WindowBuilder::build
     #[inline]
     pub fn new(event_loop: &EventLoopWindowTarget) -> Result<Window, OsError> {
-        let builder = WindowBuilder::new();
-        builder.build(event_loop)
+        Window::builder().build(event_loop)
+    }
+
+    /// Create a new [`WindowBuilder`] which allows modifying the window's attributes before creation.
+    #[inline]
+    pub fn builder() -> WindowBuilder {
+        WindowBuilder::default()
     }
 
     /// Returns an identifier unique to the window.
@@ -654,7 +662,7 @@ impl Window {
     /// // Notify winit that we're about to submit buffer to the windowing system.
     /// window.pre_present_notify();
     ///
-    /// // Sumbit buffer to the windowing system.
+    /// // Submit buffer to the windowing system.
     /// swap_buffers();
     /// ```
     ///
@@ -785,7 +793,7 @@ impl Window {
     /// may not be generated.
     ///
     /// On platforms where resizing is disallowed by the windowing system, the current
-    /// inner size is returned immidiatelly, and the user one is ignored.
+    /// inner size is returned immediately, and the user one is ignored.
     ///
     /// When `None` is returned, it means that the request went to the display system,
     /// and the actual size will be delivered later with the [`WindowEvent::Resized`].
@@ -930,7 +938,7 @@ impl Window {
     /// Change the window transparency state.
     ///
     /// This is just a hint that may not change anything about
-    /// the window transparency, however doing a missmatch between
+    /// the window transparency, however doing a mismatch between
     /// the content of your window and this hint may result in
     /// visual artifacts.
     ///
@@ -938,7 +946,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Web / iOS / Android / Orbital:** Unsupported.
+    /// - **Web / iOS / Android:** Unsupported.
     /// - **X11:** Can only be set while building the window, with [`WindowBuilder::with_transparent`].
     #[inline]
     pub fn set_transparent(&self, transparent: bool) {
@@ -1071,7 +1079,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window
@@ -1082,7 +1090,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Orbital:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.window.maybe_wait_on_main(|w| w.is_maximized())
@@ -1442,7 +1450,7 @@ impl Window {
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
-    /// - **iOS / Android / Orbital:** Unsupported.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window
@@ -1459,7 +1467,7 @@ impl Window {
     /// - **X11:** Un-grabs the cursor.
     /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.maybe_wait_on_main(|w| w.drag_window())
@@ -1473,7 +1481,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** Always returns an [`ExternalError::NotSupported`]
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
         self.window
@@ -1634,7 +1642,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Web / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1645,7 +1653,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - **iOS / Android / Orbital:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     Locked,
 }
 

@@ -8,7 +8,7 @@ use winit::{
     event::{DeviceEvent, ElementState, Event, KeyEvent, RawKeyEvent, WindowEvent},
     event_loop::{DeviceEvents, EventLoop},
     keyboard::{Key, KeyCode, PhysicalKey},
-    window::{Fullscreen, WindowBuilder},
+    window::{Fullscreen, Window},
 };
 
 #[path = "util/fill.rs"]
@@ -18,7 +18,7 @@ fn main() -> Result<(), impl std::error::Error> {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new().unwrap();
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("A fantastic window!")
         .with_inner_size(LogicalSize::new(100.0, 100.0))
         .build(&event_loop)
@@ -27,7 +27,7 @@ fn main() -> Result<(), impl std::error::Error> {
     eprintln!("debugging keys:");
     eprintln!("  (E) Enter exclusive fullscreen");
     eprintln!("  (F) Toggle borderless fullscreen");
-    eprintln!("  (P) Toggle borderless fullscreen on system's preffered monitor");
+    eprintln!("  (P) Toggle borderless fullscreen on system's preferred monitor");
     eprintln!("  (M) Toggle minimized");
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
@@ -76,7 +76,7 @@ fn main() -> Result<(), impl std::error::Error> {
                         },
                     ..
                 } => match key_str.as_ref() {
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                     // See the `key_binding` example
                     "e" => {
                         fn area(size: PhysicalSize<u32>) -> u32 {

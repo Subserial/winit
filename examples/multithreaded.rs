@@ -10,7 +10,7 @@ fn main() -> Result<(), impl std::error::Error> {
         event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::EventLoop,
         keyboard::{Key, ModifiersState, NamedKey},
-        window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder, WindowLevel},
+        window::{CursorGrabMode, CursorIcon, Fullscreen, Window, WindowLevel},
     };
 
     const WINDOW_COUNT: usize = 3;
@@ -20,7 +20,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let event_loop = EventLoop::new().unwrap();
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
-        let window = WindowBuilder::new()
+        let window = Window::builder()
             .with_inner_size(WINDOW_SIZE)
             .build(&event_loop)
             .unwrap();
@@ -78,7 +78,7 @@ fn main() -> Result<(), impl std::error::Error> {
                                 }
                                 println!("Picking video mode: {}", video_modes[video_mode_id]);
                             }
-                            // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                            // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                             // See the `key_binding` example
                             Key::Character(ch) => match ch.to_lowercase().as_str() {
                                 "1" => window.set_window_level(WindowLevel::AlwaysOnTop),

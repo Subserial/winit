@@ -94,8 +94,6 @@ use crate::{
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
-use self::runner::RunnerState;
-
 use super::{window::set_skip_taskbar, SelectedCursor};
 
 /// some backends like macos uses an uninhabited `Never` type,
@@ -246,9 +244,6 @@ impl<T: 'static> EventLoop<T> {
     {
         {
             let runner = &self.window_target.p.runner_shared;
-            if runner.state() != RunnerState::Uninitialized {
-                return Err(EventLoopError::AlreadyRunning);
-            }
 
             let event_loop_windows_ref = &self.window_target;
             let user_event_receiver = &self.user_event_receiver;
@@ -432,7 +427,7 @@ impl<T: 'static> EventLoop<T> {
         // The Windows API has no documented requirement for bitwise
         // initializing a `MSG` struct (it can be uninitialized memory for the C
         // API) and there's no API to construct or initialize a `MSG`. This
-        // is the simplest way avoid unitialized memory in Rust
+        // is the simplest way avoid uninitialized memory in Rust
         let mut msg = unsafe { mem::zeroed() };
         let msg_status = wait_for_msg(&mut msg, timeout);
 
@@ -480,7 +475,7 @@ impl<T: 'static> EventLoop<T> {
         // The Windows API has no documented requirement for bitwise
         // initializing a `MSG` struct (it can be uninitialized memory for the C
         // API) and there's no API to construct or initialize a `MSG`. This
-        // is the simplest way avoid unitialized memory in Rust
+        // is the simplest way avoid uninitialized memory in Rust
         let mut msg = unsafe { mem::zeroed() };
 
         loop {
@@ -769,14 +764,13 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        unsafe {
-            if PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) != false.into() {
-                self.event_send.send(event).ok();
-                Ok(())
-            } else {
-                Err(EventLoopClosed(event))
-            }
-        }
+        self.event_send
+            .send(event)
+            .map(|result| {
+                unsafe { PostMessageW(self.target_window, USER_EVENT_MSG_ID.get(), 0, 0) };
+                result
+            })
+            .map_err(|e| EventLoopClosed(e.0))
     }
 }
 
@@ -1108,7 +1102,7 @@ unsafe fn public_window_callback_inner(
         .unwrap_or_else(|| result = ProcResult::Value(-1));
 
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
-    // the closure to catch_unwind directly so that the match body indendation wouldn't change and
+    // the closure to catch_unwind directly so that the match body indentation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
         WM_NCCALCSIZE => {
@@ -2387,7 +2381,7 @@ unsafe extern "system" fn thread_event_target_callback(
     let mut userdata_removed = false;
 
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
-    // the closure to catch_unwind directly so that the match body indendation wouldn't change and
+    // the closure to catch_unwind directly so that the match body indentation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
         WM_NCDESTROY => {
@@ -2397,7 +2391,7 @@ unsafe extern "system" fn thread_event_target_callback(
         }
         WM_PAINT => unsafe {
             ValidateRect(window, ptr::null());
-            // Default WM_PAINT behaviour. This makes sure modals and popups are shown immediatly when opening them.
+            // Default WM_PAINT behaviour. This makes sure modals and popups are shown immediately when opening them.
             DefWindowProcW(window, msg, wparam, lparam)
         },
 

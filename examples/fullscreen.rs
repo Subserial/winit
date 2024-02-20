@@ -5,7 +5,7 @@ use winit::dpi::LogicalSize;
 use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
 use winit::keyboard::{Key, NamedKey};
-use winit::window::{Fullscreen, WindowBuilder};
+use winit::window::{Fullscreen, Window};
 
 #[cfg(target_os = "macos")]
 use winit::platform::macos::WindowExtMacOS;
@@ -22,7 +22,7 @@ fn main() -> Result<(), impl std::error::Error> {
     let mut with_min_size = false;
     let mut with_max_size = false;
 
-    let window = WindowBuilder::new()
+    let window = Window::builder()
         .with_title("Hello world!")
         .build(&event_loop)
         .unwrap();
@@ -66,7 +66,7 @@ fn main() -> Result<(), impl std::error::Error> {
                     ..
                 } => match key {
                     Key::Named(NamedKey::Escape) => elwt.exit(),
-                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // WARNING: Consider using `key_without_modifiers()` if available on your platform.
                     // See the `key_binding` example
                     Key::Character(ch) => match ch.to_lowercase().as_str() {
                         "f" | "b" if window.fullscreen().is_some() => {

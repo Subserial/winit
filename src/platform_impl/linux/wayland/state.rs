@@ -61,7 +61,7 @@ pub struct WinitState {
     /// The pool where custom cursors are allocated.
     pub custom_cursor_pool: Arc<Mutex<SlotPool>>,
 
-    /// The XDG shell that is used for widnows.
+    /// The XDG shell that is used for windows.
     pub xdg_shell: XdgShell,
 
     /// The layer shell for layer surfaces
@@ -76,7 +76,7 @@ pub struct WinitState {
     /// The events that were generated directly from the window.
     pub window_events_sink: Arc<Mutex<EventSink>>,
 
-    /// The update for the `windows` comming from the compositor.
+    /// The update for the `windows` coming from the compositor.
     pub window_compositor_updates: Vec<WindowCompositorUpdate>,
 
     /// Currently handled seats.
@@ -305,9 +305,19 @@ impl WindowHandler for WinitState {
             .configure_xdg(
                 configure,
                 &self.shm,
-                &self.subcompositor_state,
-                &mut self.events_sink,
-            );
+                &self.subcompositor_state);
+
+        // NOTE: configure demands wl_surface::commit, however winit doesn't commit on behalf of the
+        // users, since it can break a lot of things, thus it'll ask users to redraw instead.
+        self.window_requests
+            .get_mut()
+            .get(&window_id)
+            .unwrap()
+            .redraw_requested
+            .store(true, Ordering::Relaxed);
+
+        // Manually mark that we've got an event, since configure may not generate a resize.
+        self.dispatched_events = true;
     }
 }
 
@@ -434,7 +444,7 @@ impl ProvidesRegistryState for WinitState {
     sctk::registry_handlers![OutputState, SeatState];
 }
 
-// The window update comming from the compositor.
+// The window update coming from the compositor.
 #[derive(Debug, Clone, Copy)]
 pub struct WindowCompositorUpdate {
     /// The id of the window this updates belongs to.

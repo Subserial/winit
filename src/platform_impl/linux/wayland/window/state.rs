@@ -4,8 +4,10 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
+use ahash::HashSet;
 use log::{error, info, warn};
 
+use sctk::reexports::client::backend::ObjectId;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
@@ -34,11 +36,9 @@ use wayland_protocols_plasma::blur::client::org_kde_kwin_blur::OrgKdeKwinBlur;
 use crate::cursor::CustomCursor as RootCustomCursor;
 use crate::dpi::{LogicalPosition, LogicalSize, PhysicalSize, Size};
 use crate::error::{ExternalError, NotSupportedError};
-use crate::event::WindowEvent;
-use crate::platform_impl::wayland::event_loop::sink::EventSink;
+use crate::platform_impl::wayland::logical_to_physical_rounded;
 use crate::platform_impl::wayland::types::cursor::{CustomCursor, SelectedCursor};
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
-use crate::platform_impl::wayland::{logical_to_physical_rounded, make_wid};
 use crate::platform_impl::{PlatformCustomCursor, WindowId};
 use crate::window::{CursorGrabMode, CursorIcon, ImePurpose, ResizeDirection, Theme};
 
@@ -71,7 +71,7 @@ pub struct WindowState {
 
     selected_cursor: SelectedCursor,
 
-    /// Wether the cursor is visible.
+    /// Whether the cursor is visible.
     pub cursor_visible: bool,
 
     /// Pointer constraints to lock/confine pointer.
@@ -83,14 +83,16 @@ pub struct WindowState {
     /// State that differes based on being an XDG shell or a WLR layer shell
     shell_specific: ShellSpecificState,
 
-    /// Theme varaint.
+    /// Theme variant.
     theme: Option<Theme>,
 
     /// The current window title.
     title: String,
 
-    /// Whether the window has focus.
-    has_focus: bool,
+    // NOTE: we can't use simple counter, since it's racy when seat getting destroyed and new
+    // is created, since add/removed stuff could be delivered a bit out of order.
+    /// Seats that has keyboard focus on that window.
+    seat_focus: HashSet<ObjectId>,
 
     /// The scale factor of the window.
     scale_factor: f64,
@@ -172,7 +174,7 @@ enum ShellSpecificState {
 
 impl WindowState {
     /// Apply closure on the given pointer.
-    fn apply_on_poiner<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
+    fn apply_on_pointer<F: Fn(&ThemedPointer<WinitPointerData>, &WinitPointerData)>(
         &self,
         callback: F,
     ) {
@@ -253,7 +255,6 @@ impl WindowState {
         configure: WindowConfigure,
         shm: &Shm,
         subcompositor: &Option<Arc<SubcompositorState>>,
-        event_sink: &mut EventSink,
     ) -> bool {
         let ShellSpecificState::Xdg {
             ref window,
@@ -308,18 +309,6 @@ impl WindowState {
         }
 
         let stateless = Self::is_stateless(&configure);
-
-        // Emit `Occluded` event on suspension change.
-        let occluded = configure.state.contains(XdgWindowState::SUSPENDED);
-        if last_configure
-            .as_ref()
-            .map(|c| c.state.contains(XdgWindowState::SUSPENDED))
-            .unwrap_or(false)
-            != occluded
-        {
-            let window_id = make_wid(window.wl_surface());
-            event_sink.push_window_event(WindowEvent::Occluded(occluded), window_id);
-        }
 
         let (mut new_size, constrain) = if let Some(frame) = frame.as_mut() {
             // Configure the window states.
@@ -436,7 +425,7 @@ impl WindowState {
                 let xdg_toplevel = window.xdg_toplevel();
 
                 // TODO(kchibisov) handle touch serials.
-                self.apply_on_poiner(|_, data| {
+                self.apply_on_pointer(|_, data| {
                     let serial = data.latest_button_serial();
                     let seat = data.seat();
                     xdg_toplevel.resize(seat, serial, direction.into());
@@ -454,7 +443,7 @@ impl WindowState {
             ShellSpecificState::Xdg { window, .. } => {
                 let xdg_toplevel = window.xdg_toplevel();
                 // TODO(kchibisov) handle touch serials.
-                self.apply_on_poiner(|_, data| {
+                self.apply_on_pointer(|_, data| {
                     let serial = data.latest_button_serial();
                     let seat = data.seat();
                     xdg_toplevel._move(seat, serial);
@@ -574,15 +563,17 @@ impl WindowState {
     }
 
     /// Set the resizable state on the window.
+    ///
+    /// Returns `true` when the state was applied.
     #[inline]
-    pub fn set_resizable(&mut self, resizable: bool) {
+    pub fn set_resizable(&mut self, resizable: bool) -> bool {
         match &mut self.shell_specific {
             ShellSpecificState::Xdg {
                 resizable: state_resizable,
                 ..
             } => {
                 if *state_resizable == resizable {
-                    return;
+                    return false;
                 }
 
                 *state_resizable = resizable;
@@ -591,7 +582,7 @@ impl WindowState {
                 if resizable {
                     warn!("Resizable is ignored for layer_shell windows");
                 }
-                return;
+                return false;
             }
         }
 
@@ -613,12 +604,14 @@ impl WindowState {
             ShellSpecificState::Xdg { frame: None, .. } => {}
             ShellSpecificState::WlrLayer { .. } => unreachable!(),
         }
+
+        true
     }
 
-    /// Whether the window is focused.
+    /// Whether the window is focused by any seat.
     #[inline]
     pub fn has_focus(&self) -> bool {
-        self.has_focus
+        !self.seat_focus.is_empty()
     }
 
     /// Whether the IME is allowed.
@@ -695,7 +688,7 @@ impl WindowState {
             selected_cursor: Default::default(),
             cursor_visible: true,
             fractional_scale,
-            has_focus: false,
+            seat_focus: Default::default(),
             ime_allowed: false,
             ime_purpose: ImePurpose::Normal,
             pointer_constraints,
@@ -756,7 +749,7 @@ impl WindowState {
             cursor_visible: true,
             custom_cursor_pool: winit_state.custom_cursor_pool.clone(),
             fractional_scale,
-            has_focus: false,
+            seat_focus: Default::default(),
             ime_allowed: false,
             ime_purpose: ImePurpose::Normal,
             pointer_constraints,
@@ -954,7 +947,7 @@ impl WindowState {
             return;
         }
 
-        self.apply_on_poiner(|pointer, _| {
+        self.apply_on_pointer(|pointer, _| {
             if pointer.set_cursor(&self.connection, cursor_icon).is_err() {
                 warn!("Failed to set cursor to {:?}", cursor_icon);
             }
@@ -989,7 +982,7 @@ impl WindowState {
     }
 
     fn apply_custom_cursor(&self, cursor: &CustomCursor) {
-        self.apply_on_poiner(|pointer, _| {
+        self.apply_on_pointer(|pointer, _| {
             let surface = pointer.surface();
 
             let scale = surface
@@ -1158,21 +1151,21 @@ impl WindowState {
 
         match old_mode {
             CursorGrabMode::None => (),
-            CursorGrabMode::Confined => self.apply_on_poiner(|_, data| {
+            CursorGrabMode::Confined => self.apply_on_pointer(|_, data| {
                 data.unconfine_pointer();
             }),
             CursorGrabMode::Locked => {
-                self.apply_on_poiner(|_, data| data.unlock_pointer());
+                self.apply_on_pointer(|_, data| data.unlock_pointer());
             }
         }
 
         let surface = self.wl_surface();
         match mode {
-            CursorGrabMode::Locked => self.apply_on_poiner(|pointer, data| {
+            CursorGrabMode::Locked => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
                 data.lock_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
             }),
-            CursorGrabMode::Confined => self.apply_on_poiner(|pointer, data| {
+            CursorGrabMode::Confined => self.apply_on_pointer(|pointer, data| {
                 let pointer = pointer.pointer();
                 data.confine_pointer(pointer_constraints, surface, pointer, &self.queue_handle)
             }),
@@ -1188,7 +1181,7 @@ impl WindowState {
         match &self.shell_specific {
             ShellSpecificState::Xdg { window, .. } => {
                 // TODO(kchibisov) handle touch serials.
-                self.apply_on_poiner(|_, data| {
+                self.apply_on_pointer(|_, data| {
                     let serial = data.latest_button_serial();
                     let seat = data.seat();
                     window.show_window_menu(seat, serial, position.into());
@@ -1204,7 +1197,7 @@ impl WindowState {
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        // Positon can be set only for locked cursor.
+        // Position can be set only for locked cursor.
         if self.cursor_grab_mode.current_grab_mode != CursorGrabMode::Locked {
             return Err(ExternalError::Os(os_error!(
                 crate::platform_impl::OsError::Misc(
@@ -1213,7 +1206,7 @@ impl WindowState {
             )));
         }
 
-        self.apply_on_poiner(|_, data| {
+        self.apply_on_pointer(|_, data| {
             data.set_locked_cursor_position(position.x, position.y);
         });
 
@@ -1285,12 +1278,16 @@ impl WindowState {
         }
     }
 
-    /// Mark that the window has focus.
-    ///
-    /// Should be used from routine that sends focused event.
+    /// Add seat focus for the window.
     #[inline]
-    pub fn set_has_focus(&mut self, has_focus: bool) {
-        self.has_focus = has_focus;
+    pub fn add_seat_focus(&mut self, seat: ObjectId) {
+        self.seat_focus.insert(seat);
+    }
+
+    /// Remove seat focus from the window.
+    #[inline]
+    pub fn remove_seat_focus(&mut self, seat: &ObjectId) {
+        self.seat_focus.remove(seat);
     }
 
     /// Returns `true` if the requested state was applied.
@@ -1378,7 +1375,7 @@ impl WindowState {
 
     /// Set the window title to a new value.
     ///
-    /// This will autmatically truncate the title to something meaningfull.
+    /// This will automatically truncate the title to something meaningful.
     pub fn set_title(&mut self, mut title: String) {
         // Truncate the title to at most 1024 bytes, so that it does not blow up the protocol
         // messages
@@ -1526,7 +1523,7 @@ impl GrabState {
 /// The state of the frame callback.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameCallbackState {
-    /// No frame callback was requsted.
+    /// No frame callback was requested.
     #[default]
     None,
     /// The frame callback was requested, but not yet arrived, the redraw events are throttled.
